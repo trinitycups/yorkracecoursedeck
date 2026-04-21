@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Presentation</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0a;
+      --accent: #f0f0f0;
+      --muted: rgba(255,255,255,0.2);
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg);
+      overflow: hidden;
+      font-family: monospace;
+      cursor: none;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .slide img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      user-select: none;
+    }
+
+    #progress-bar {
+      position: fixed;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: var(--accent);
+      transition: width 0.4s ease;
+      z-index: 100;
+    }
+
+    #counter {
+      position: fixed;
+      bottom: 16px;
+      right: 20px;
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      z-index: 100;
+      user-select: none;
+    }
+
+    #nav-prev, #nav-next {
+      position: fixed;
+      top: 0; bottom: 0;
+      width: 40%;
+      z-index: 50;
+      cursor: none;
+    }
+    #nav-prev { left: 0; }
+    #nav-next { right: 0; }
+
+    #cursor {
+      position: fixed;
+      width: 8px; height: 8px;
+      background: white;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 9999;
+      transform: translate(-50%, -50%);
+      mix-blend-mode: difference;
+      transition: width 0.15s, height 0.15s;
+    }
+
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.6s ease;
+    }
+
+    #loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .loader-track {
+      width: 120px;
+      height: 1px;
+      background: rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+
+    .loader-fill {
+      height: 100%;
+      background: white;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    #hint {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: rgba(255,255,255,0.12);
+      z-index: 100;
+      text-transform: uppercase;
+      transition: opacity 1s ease;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    #hint.hidden { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+<div id="loader">
+  <div>
+    <div class="loader-track"><div class="loader-fill" id="loader-fill"></div></div>
+  </div>
+</div>
+
+<div id="cursor"></div>
+<div id="progress-bar"></div>
+<div id="counter"></div>
+<div id="hint">click or use arrow keys to navigate</div>
+<div id="nav-prev"></div>
+<div id="nav-next"></div>
+<div id="stage"></div>
+
+<script>
+  const SLIDES = [
+    'Frame-1.jpg',
+    'Frame-2.jpg',
+    'Frame-3.jpg',
+    'Frame-4.jpg',
+    'Frame-5.jpg',
+    'Frame-6.jpg',
+    'Frame-7.jpg',
+    'Frame-8.jpg',
+    'Frame-9.jpg',
+    'Frame-10.jpg',
+    'Frame-11.jpg',
+    'Frame-12.jpg',
+    'Frame-13.jpg',
+    'Frame-14.jpg',
+    'Frame-15.jpg',
+    'Frame-16.jpg',
+    'Frame-17.jpg',
+    'Frame-18.jpg',
+    'Frame-19.jpg',
+    'Frame-20.jpg',
+  ];
+
+  let current = 0;
+  let hintDismissed = false;
+  const total = SLIDES.length;
+
+  const stage = document.getElementById('stage');
+  const counter = document.getElementById('counter');
+  const progressBar = document.getElementById('progress-bar');
+  const loader = document.getElementById('loader');
+  const loaderFill = document.getElementById('loader-fill');
+  const hint = document.getElementById('hint');
+  const cursor = document.getElementById('cursor');
+  const navPrev = document.getElementById('nav-prev');
+  const navNext = document.getElementById('nav-next');
+
+  const slideEls = SLIDES.map((src, i) => {
+    const div = document.createElement('div');
+    div.className = 'slide' + (i === 0 ? ' active' : '');
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = 'Slide ' + (i + 1);
+    div.appendChild(img);
+    stage.appendChild(div);
+    return div;
+  });
+
+  let loaded = 0;
+
+  function onLoad() {
+    loaded++;
+    loaderFill.style.width = Math.round((loaded / total) * 100) + '%';
+    if (loaded === total) {
+      setTimeout(() => {
+        loader.classList.add('hidden');
+        updateUI();
+      }, 300);
+    }
+  }
+
+  slideEls.forEach(el => {
+    const img = el.querySelector('img');
+    if (img.complete) { onLoad(); }
+    else {
+      img.addEventListener('load', onLoad);
+      img.addEventListener('error', onLoad);
+    }
+  });
+
+  function updateUI() {
+    progressBar.style.width = ((current + 1) / total * 100) + '%';
+    counter.textContent =
+      String(current + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+  }
+
+  function goTo(i) {
+    if (i < 0 || i >= total) return;
+    slideEls[current].classList.remove('active');
+    current = i;
+    slideEls[current].classList.add('active');
+    updateUI();
+    if (!hintDismissed) { hintDismissed = true; hint.classList.add('hidden'); }
+  }
+
+  function next() { goTo(current + 1); }
+  function prev() { goTo(current - 1); }
+
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', ' '].includes(e.key)) { e.preventDefault(); next(); }
+    if (['ArrowLeft', 'ArrowUp'].includes(e.key)) { e.preventDefault(); prev(); }
+  });
+
+  navNext.addEventListener('click', next);
+  navPrev.addEventListener('click', prev);
+
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 40) { dx < 0 ? next() : prev(); }
+  });
+
+  document.addEventListener('mousemove', e => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    const inPrev = e.clientX < window.innerWidth * 0.4;
+    cursor.style.width = inPrev ? '6px' : '10px';
+    cursor.style.height = inPrev ? '6px' : '10px';
+  });
+
+  updateUI();
+</script>
+</body>
+</html>
